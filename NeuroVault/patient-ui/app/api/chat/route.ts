@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 // --- CONFIGURATION ---
 // 1. Gemini Configuration (The Brain)
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // 2. Moorcheh Configuration (The Memory)
 // This MUST match the namespace name in your Python script

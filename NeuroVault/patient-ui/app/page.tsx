@@ -5,6 +5,7 @@ import { useState } from "react";
 import NeuroVaultShell from "../components/neurovault/NeuroVaultShell";
 import BigActionButton from "../components/neurovault/BigAction";
 import ResponseCard from "../components/neurovault/ResponseCard";
+import CaregiverFab from "@/components/neurovault/CaregiverFab";
 
 export default function Page() {
   const [status, setStatus] = useState<"idle" | "listening" | "thinking">("idle");
@@ -83,6 +84,7 @@ export default function Page() {
 
         <ResponseCard answer={answer} />
       </div>
+      <CaregiverFab />
     </NeuroVaultShell>
   );
 }

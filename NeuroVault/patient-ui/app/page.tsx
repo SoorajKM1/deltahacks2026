@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { askNeuroVault } from "../lib/neurovault-client";
+// import { askNeuroVault } from "../lib/neurovault-client"; #This is the old chat, were not using it anymore
 import NeuroVaultShell from "../components/neurovault/NeuroVaultShell";
 import BigActionButton from "../components/neurovault/BigAction";
 import ResponseCard from "../components/neurovault/ResponseCard";
@@ -19,15 +19,25 @@ export default function Page() {
     setTranscript(q);
 
     try {
-      // Real call (from lib/neurovault-client.ts)
-      const a = await askNeuroVault(q, [
-        { role: "user", content: q }
-      ]);
+      // --- NEW: Direct Call to Gemini Brain --- IMPORTANT
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            messages: [{ role: "user", content: q }] 
+        }),
+      });
+
+      if (!response.ok) throw new Error("Brain connection failed");
+
+      const a = await response.text();
+      // ----------------------------------------
 
       setAnswer(a);
       speak(a);
     } catch (e) {
-      const fallback = "Sorry, something went wrong.";
+      console.error(e);
+      const fallback = "I'm having trouble connecting to my memory right now.";
       setAnswer(fallback);
       speak(fallback);
     } finally {
@@ -41,7 +51,12 @@ export default function Page() {
 
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.95;
+    // Accessibility Tweak: Slower rate for seniors
+    u.rate = 0.9; 
+    // Optional: Deep/Comforting voice if available
+    // const voices = window.speechSynthesis.getVoices();
+    // u.voice = voices.find(v => v.name.includes("Male")) || null; 
+    
     window.speechSynthesis.speak(u);
   }
 

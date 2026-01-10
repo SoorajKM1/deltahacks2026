@@ -8,7 +8,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // 2. Moorcheh Configuration (The Memory)
 // This MUST match the namespace name in your Python script
-const NAMESPACE = "grandpa_joe_v1"; 
+const NAMESPACE = "grandpa_joe_FINAL";
 
 export async function POST(req: Request) {
   try {
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
 
     // --- STEP B: GENERATE ANSWER (Gemini) ---
     const systemPrompt = `
-      ROLE: You are "Anchor," a compassionate dementia care assistant.
+      ROLE: You are "NeuroVault," a compassionate dementia care assistant.
       
       RETRIEVED MEMORY:
       ${contextText}

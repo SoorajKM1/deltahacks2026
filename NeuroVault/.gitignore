@@ -1,0 +1,9 @@
+# Ignore Environment Variables
+.env
+.env.local
+.env.*
+
+# Python caches (Since you are doing python work)
+__pycache__/
+*.pyc
+intelligence/venv/

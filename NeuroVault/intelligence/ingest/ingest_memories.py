@@ -3,17 +3,10 @@ import glob
 from dotenv import load_dotenv
 from moorcheh_sdk import MoorchehClient
 
-# --- PATH DEBUGGING ---
-# Get the absolute path of this script
+# --- PATH SETUP ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Navigate: ingest -> intelligence -> NeuroVault -> data -> memories
 DATA_FOLDER = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..', 'data', 'memories'))
-print(f"📂 Data folder set to: {DATA_FOLDER}")
 ENV_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '.env'))
-
-print(f"📍 Script is here:   {SCRIPT_DIR}")
-print(f"📂 Looking for data: {DATA_FOLDER}")
-print(f"🔑 Looking for env:  {ENV_PATH}")
 
 load_dotenv(ENV_PATH)
 
@@ -26,27 +19,42 @@ def ingest():
     # 1. READ FILES
     txt_files = glob.glob(os.path.join(DATA_FOLDER, "*.txt"))
     if not txt_files:
-        print("❌ ERROR: No .txt files found! Check the 'Looking for data' path above.")
+        print(f"❌ ERROR: No .txt files found in {DATA_FOLDER}")
         return
 
-    print(f"📖 Found {len(txt_files)} memories. Reading...")
+    print(f"📖 Scanning {len(txt_files)} files...")
     memories = []
+    
     for path in txt_files:
-        with open(path, "r", encoding="utf-8") as f:
-            memories.append({"id": os.path.basename(path), "text": f.read().strip()})
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                
+                # --- THE FIX IS HERE ---
+                if content: 
+                    memories.append({"id": os.path.basename(path), "text": content})
+                else:
+                    print(f"⚠️ Skipping EMPTY file: {os.path.basename(path)}")
+                    
+        except Exception as e:
+            print(f"⚠️ Error reading {os.path.basename(path)}: {e}")
+
+    if not memories:
+        print("❌ No valid text found to upload. All files were empty.")
+        return
 
     # 2. UPLOAD
     client = MoorchehClient(api_key=api_key)
     # MUST MATCH route.ts EXACTLY
     NAMESPACE = "grandpa_joe_FINAL" 
     
-    print(f"📦 Creating Box: {NAMESPACE}")
+    print(f"📦 Box: {NAMESPACE}")
     try:
         client.create_namespace(NAMESPACE, "text")
     except:
-        pass
+        pass # Box likely exists, which is fine
 
-    print(f"🚀 Uploading...")
+    print(f"🚀 Uploading {len(memories)} valid memories...")
     client.upload_documents(NAMESPACE, memories)
     print("✅ SUCCESS! Memories uploaded.")
 

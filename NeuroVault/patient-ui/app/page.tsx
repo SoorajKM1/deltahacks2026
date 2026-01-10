@@ -1,17 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import NeuroVaultShell from "@/components/neurovault/NeuroVaultShell";
-import BigActionButton from "@/components/neurovault/BigActionButton";
-import ResponseCard from "@/components/neurovault/ResponseCard";
-
-// TODO: swap this with the boilerplate's real API call.
-// Search your repo for something like: fetch("/api") or "generate" or "moorcheh"
-async function askNeuroVault(question: string): Promise<string> {
-  // Temporary safe stub so UI works immediately
-  await new Promise((r) => setTimeout(r, 600));
-  return "This is Tim, your grandson. He is 8 years old and loves playing soccer.";
-}
+import { askNeuroVault } from "../lib/neurovault-client";
+import NeuroVaultShell from "../components/neurovault/NeuroVaultShell";
+import BigActionButton from "../components/neurovault/BigAction";
+import ResponseCard from "../components/neurovault/ResponseCard";
 
 export default function Page() {
   const [status, setStatus] = useState<"idle" | "listening" | "thinking">("idle");
@@ -26,9 +19,17 @@ export default function Page() {
     setTranscript(q);
 
     try {
-      const a = await askNeuroVault(q);
+      // Real call (from lib/neurovault-client.ts)
+      const a = await askNeuroVault(q, [
+        { role: "user", content: q }
+      ]);
+
       setAnswer(a);
       speak(a);
+    } catch (e) {
+      const fallback = "Sorry, something went wrong.";
+      setAnswer(fallback);
+      speak(fallback);
     } finally {
       setStatus("idle");
     }
@@ -58,10 +59,10 @@ export default function Page() {
           onStatusChange={(s) => setStatus(s)}
         />
 
-        <div className="rounded-2xl border border-black/10 p-6">
+        <div className="rounded-2xl border border-black/10 bg-white p-7">
           <div className="text-sm uppercase tracking-wide text-black/60">You said</div>
-          <div className="mt-2 min-h-[56px] text-3xl font-semibold">
-            {status === "listening" ? "Listening…" : transcript || "Press the button and speak."}
+          <div className="mt-3 min-h-[56px] text-3xl font-semibold">
+            {status === "listening" ? "Listening…" : transcript || "Press Ask for Help and speak."}
           </div>
         </div>
 

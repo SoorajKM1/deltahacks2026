@@ -2,3 +2,5 @@ python-dotenv
 pymongo
 moorcheh-sdk
 watchdog
+flask
+gunicorn

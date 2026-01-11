@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
 export type VisionIdentifyResult = {
-  memory_id: string; // "mem_family_tim.txt" or "unknown"
-  confidence: number;
-  distance?: number;
-  match_filename?: string;
+    memory_id: string; // "mem_family_tim.txt" or "unknown"
+    confidence: number;
+    distance?: number;
+    match_filename?: string;
 };
 
 type Status = "idle" | "starting" | "ready" | "capturing" | "error";
 
 export default function CameraCapture({
-    backendUrl = "http://localhost:8001", // not used anymore but keeping prop so nothing breaks
+    backendUrl = "http://localhost:8001", // kept so nothing breaks, not used (Next proxy avoids CORS)
     onCapture,
     onIdentify,
     }: {
@@ -22,6 +23,7 @@ export default function CameraCapture({
     }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const resultRef = useRef<HTMLDivElement>(null); // auto-scroll target
 
     const [status, setStatus] = useState<Status>("starting");
     const [err, setErr] = useState<string>("");
@@ -32,14 +34,7 @@ export default function CameraCapture({
 
     const canSnap = status === "ready" && !busy;
 
-    const statusText = useMemo(() => {
-        if (status === "starting") return "Starting camera…";
-        if (status === "ready") return "Camera ready";
-        if (status === "capturing") return "Identifying…";
-        if (status === "error") return "Camera error";
-        return "Idle";
-    }, [status]);
-
+    // 1) START CAMERA (logic from your correct version)
     useEffect(() => {
         let stream: MediaStream | null = null;
 
@@ -79,6 +74,15 @@ export default function CameraCapture({
         };
     }, []);
 
+    // 2) AUTO-SCROLL TO RESULTS (keeps your newer UI behavior)
+    useEffect(() => {
+        if (lastResult || err) {
+        setTimeout(() => {
+            resultRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 100);
+        }
+    }, [lastResult, err]);
+
     async function captureFrame(): Promise<string | null> {
         const v = videoRef.current;
         const c = canvasRef.current;
@@ -97,6 +101,7 @@ export default function CameraCapture({
         return c.toDataURL("image/jpeg", 0.9);
     }
 
+    // 3) SNAP + IDENTIFY (logic from your correct version)
     async function snapAndIdentify() {
         if (!canSnap) return;
 
@@ -138,8 +143,8 @@ export default function CameraCapture({
         setLastResult(result);
         onIdentify?.(result);
 
-        // IMPORTANT: do NOT auto-send #file:... here anymore.
-        // The parent page decides what to do with the result.
+        // IMPORTANT: do NOT auto-send #file:... here.
+        // Parent decides what to do with result.
         } catch (e: any) {
         console.error(e);
         setErr(e?.message || "Something went wrong");
@@ -157,100 +162,99 @@ export default function CameraCapture({
     }
 
     return (
-        <div className="space-y-4">
-        <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-            <div>
-                <div className="text-sm uppercase tracking-wide text-black/60">Photo recall</div>
-                <div className="mt-1 text-lg font-semibold">{statusText}</div>
+        <div className="flex flex-col gap-4 w-full h-full relative">
+        {/* CAMERA VIEWPORT */}
+        <div className="relative w-full aspect-4/3 bg-black rounded-4xl overflow-hidden shadow-inner border border-slate-800 group shrink-0">
+            {/* VIDEO / SNAPSHOT */}
+            {!lastSnapshot ? (
+            <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+            ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={lastSnapshot} alt="Captured" className="w-full h-full object-cover opacity-60" />
+            )}
+
+            {/* OVERLAYS */}
+            {busy && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white z-30">
+                <Loader2 className="w-12 h-12 animate-spin mb-4 text-blue-400" />
+                <p className="font-bold text-lg animate-pulse">Analyzing...</p>
             </div>
+            )}
 
-            <button
-                onClick={snapAndIdentify}
-                disabled={!canSnap}
-                className="rounded-2xl bg-black/10 px-5 py-3 text-lg font-semibold text-black/80 hover:bg-black/15 disabled:opacity-50"
-            >
-                {busy ? "Identifying…" : "Capture"}
-            </button>
-            </div>
-
-            <div className="mt-4 overflow-hidden rounded-2xl border border-black/10 bg-black/20">
-            <video ref={videoRef} className="w-full" playsInline muted />
-            </div>
-
-            {err ? (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
-                {err}
-            </div>
-            ) : null}
-
-            <p className="mt-4 text-sm text-black/60">
-            Tip: Use the same reference photos from <span className="font-mono">data/images</span> for the most reliable match.
-            </p>
-        </div>
-
-        {(lastSnapshot || lastResult) && (
-            <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-                <div className="text-2xl font-semibold">Last capture</div>
+            {err && (
+            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30 animate-in fade-in">
+                <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
+                <p className="text-red-200 font-medium mb-4">{err}</p>
                 <button
                 onClick={resetPreview}
-                className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-lg text-black/70 hover:bg-black/30"
+                className="px-6 py-2 bg-white text-black rounded-full font-bold text-sm"
                 >
-                Clear
+                Try Again
                 </button>
             </div>
+            )}
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="overflow-hidden rounded-2xl border border-black/10 bg-black/20">
-                {lastSnapshot ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={lastSnapshot} alt="Captured frame" className="w-full" />
-                ) : null}
+            {/* BIG SHUTTER BUTTON (Only when ready) */}
+            {!lastSnapshot && !busy && (
+            <div className="absolute inset-x-0 bottom-6 flex flex-col items-center justify-center gap-3 z-20 animate-in slide-in-from-bottom-4 fade-in duration-500">
+                <button
+                onClick={snapAndIdentify}
+                disabled={!canSnap}
+                className="relative w-20 h-20 rounded-full border-4 border-white bg-transparent flex items-center justify-center transition-transform active:scale-95 hover:bg-white/10 shadow-[0_0_20px_rgba(0,0,0,0.5)] disabled:opacity-50"
+                >
+                <div className="w-16 h-16 bg-white rounded-full border-2 border-slate-300 shadow-sm" />
+                </button>
+                <span className="text-white/80 text-xs font-bold uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
+                Tap to Capture
+                </span>
+            </div>
+            )}
+        </div>
+
+        {/* RESULTS SECTION (Scroll Target) */}
+        <div ref={resultRef} className="scroll-mt-4 pb-4">
+            {lastResult && (
+            <div className="bg-slate-800 rounded-3xl p-6 border border-slate-700 animate-in slide-in-from-bottom-4 fade-in duration-500 shadow-xl">
+                <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center">
+                    <CheckCircle2 size={20} />
+                </div>
+                <div>
+                    <h3 className="text-white font-bold text-lg">Analysis Complete</h3>
+                    <p className="text-slate-400 text-xs">
+                    Confidence: {typeof lastResult.confidence === "number" ? lastResult.confidence.toFixed(2) : "N/A"}
+                    </p>
+                </div>
                 </div>
 
-                <div className="rounded-2xl border border-black/10 bg-black/20 p-5">
-                <div className="text-sm uppercase tracking-wide text-black/60">Match</div>
-
-                {lastResult ? (
-                    <>
-                    <div className="mt-2 text-2xl font-semibold">
-                        {lastResult.memory_id === "unknown" ? "Unknown" : lastResult.memory_id}
-                    </div>
-
-                    <div className="mt-2 text-black/70">
-                        Confidence: <span className="font-semibold">{lastResult.confidence}</span>
-                        {typeof lastResult.distance === "number" ? (
-                        <>
-                            {" "}
-                            • Distance: <span className="font-semibold">{lastResult.distance}</span>
-                        </>
-                        ) : null}
-                    </div>
-
-                    {lastResult.match_filename ? (
-                        <div className="mt-1 text-sm text-black/60">
-                        Matched: <span className="font-mono">{lastResult.match_filename}</span>
-                        </div>
-                    ) : null}
-
-                    {lastResult.memory_id !== "unknown" ? (
-                        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-                        Detected memory: <span className="font-mono">#file:{lastResult.memory_id}</span>. Use the button on the main page to ask about it.
-                        </div>
-                    ) : (
-                        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-                        No confident match. Try better lighting or a closer angle.
-                        </div>
-                    )}
-                    </>
-                ) : (
-                    <div className="mt-2 text-black/60">No result yet.</div>
-                )}
+                <div
+                className={`p-4 rounded-2xl mb-4 border ${
+                    lastResult.memory_id !== "unknown"
+                    ? "bg-blue-500/10 border-blue-500/50"
+                    : "bg-amber-500/10 border-amber-500/50"
+                }`}
+                >
+                <div className="text-xs uppercase tracking-wider font-bold opacity-60 mb-1 text-white">
+                    {lastResult.memory_id !== "unknown" ? "Match Found" : "No Match"}
                 </div>
+                <div className="text-xl font-bold text-white break-all">
+                    {lastResult.memory_id === "unknown" ? "Unknown" : lastResult.memory_id}
+                </div>
+                </div>
+
+                <div className="flex gap-3">
+                <button
+                    onClick={resetPreview}
+                    className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-colors"
+                >
+                    Scan Again
+                </button>
+                </div>
+
+                <p className="text-center text-slate-500 text-xs mt-4">Check the main screen for details.</p>
             </div>
-            </div>
-        )}
+            )}
+        </div>
 
         <canvas ref={canvasRef} className="hidden" />
         </div>

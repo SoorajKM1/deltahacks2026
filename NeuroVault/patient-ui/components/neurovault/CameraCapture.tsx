@@ -25,14 +25,14 @@ export default function CameraCapture({
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const resultRef = useRef<HTMLDivElement>(null); // auto-scroll target
 
-    const [status, setStatus] = useState<Status>("starting");
-    const [err, setErr] = useState<string>("");
-    const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<Status>("starting");
+  const [err, setErr] = useState<string>("");
+  const [busy, setBusy] = useState(false);
 
-    const [lastResult, setLastResult] = useState<VisionIdentifyResult | null>(null);
-    const [lastSnapshot, setLastSnapshot] = useState<string>("");
+  const [lastResult, setLastResult] = useState<VisionIdentifyResult | null>(null);
+  const [lastSnapshot, setLastSnapshot] = useState<string>("");
 
-    const canSnap = status === "ready" && !busy;
+  const canSnap = status === "ready" && !busy;
 
     // 1) START CAMERA (logic from your correct version)
     useEffect(() => {
@@ -83,23 +83,19 @@ export default function CameraCapture({
         }
     }, [lastResult, err]);
 
-    async function captureFrame(): Promise<string | null> {
-        const v = videoRef.current;
-        const c = canvasRef.current;
-        if (!v || !c) return null;
-
-        const w = v.videoWidth || 1280;
-        const h = v.videoHeight || 720;
-
-        c.width = w;
-        c.height = h;
-
-        const ctx = c.getContext("2d");
-        if (!ctx) return null;
-
-        ctx.drawImage(v, 0, 0, w, h);
-        return c.toDataURL("image/jpeg", 0.9);
-    }
+  async function captureFrame(): Promise<string | null> {
+    const v = videoRef.current;
+    const c = canvasRef.current;
+    if (!v || !c) return null;
+    const w = v.videoWidth || 1280;
+    const h = v.videoHeight || 720;
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(v, 0, 0, w, h);
+    return c.toDataURL("image/jpeg", 0.9);
+  }
 
     // 3) SNAP + IDENTIFY (logic from your correct version)
     async function snapAndIdentify() {
@@ -109,28 +105,21 @@ export default function CameraCapture({
         setStatus("capturing");
         setErr("");
 
-        try {
-        const img = await captureFrame();
-        if (!img) throw new Error("Failed to capture frame");
+    try {
+      const img = await captureFrame();
+      if (!img) throw new Error("Failed to capture frame");
+      setLastSnapshot(img);
+      onCapture?.(img);
 
-        setLastSnapshot(img);
-        onCapture?.(img);
+      const res = await fetch("/api/vision/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_base64: img }),
+      });
 
-        // Call Next proxy to avoid CORS
-        const res = await fetch("/api/vision/identify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ image_base64: img }),
-        });
-
-        const raw = await res.text();
-        let parsed: any = null;
-
-        try {
-            parsed = raw ? JSON.parse(raw) : null;
-        } catch {
-            parsed = { nonJson: true, raw };
-        }
+      const raw = await res.text();
+      let parsed: any = null;
+      try { parsed = JSON.parse(raw); } catch { parsed = { nonJson: true, raw }; }
 
         if (!res.ok) {
             console.error("Vision backend status:", res.status);
@@ -155,11 +144,11 @@ export default function CameraCapture({
         }
     }
 
-    function resetPreview() {
-        setLastSnapshot("");
-        setLastResult(null);
-        setErr("");
-    }
+  function resetPreview() {
+    setLastSnapshot("");
+    setLastResult(null);
+    setErr("");
+  }
 
     return (
         <div className="flex flex-col gap-4 w-full h-full relative">
@@ -256,7 +245,7 @@ export default function CameraCapture({
             )}
         </div>
 
-        <canvas ref={canvasRef} className="hidden" />
-        </div>
-    );
+      <canvas ref={canvasRef} className="hidden" />
+    </div>
+  );
 }

@@ -31,7 +31,10 @@ export default function Page() {
         }),
       });
 
-      if (!response.ok) throw new Error("Brain connection failed");
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        throw new Error(`Brain connection failed: ${response.status} ${errText}`);
+      }
 
       const a = await response.text();
 

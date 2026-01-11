@@ -82,11 +82,11 @@ export default function Page() {
       <div
         className={`
           flex items-center justify-center gap-8 w-fit mx-auto transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] h-[85vh]
-          ${showCamera ? "-translate-x-[22rem]" : "translate-x-0"} 
+          ${showCamera ? "-translate-x-88" : "translate-x-0"} 
         `}
       >
         {/* --- MAIN CARD --- */}
-        <div className="w-[45rem] h-full shrink-0 bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col transition-all duration-500 z-20 relative">
+        <div className="w-180 h-full shrink-0 bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col transition-all duration-500 z-20 relative">
           <header className="px-8 py-5 border-b border-slate-50 flex items-center justify-between bg-slate-50/50 shrink-0">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-800">NeuroVault</h1>

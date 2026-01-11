@@ -33,22 +33,14 @@ export default function CaregiverPage() {
   
   // Logs State
   const [logs, setLogs] = useState<LogEntry[]>([{
-    id: 12345, // Just give it a static hardcoded number like 1
-    ts: nowTime(), 
-    type: "success", 
+    id: 1, ts: nowTime(), type: "success", 
     message: 'SECURE: System initialized. Ready for encrypted upload.'
   }]);
 
   // Helper to add logs
   const addLog = (text: string, type: LogType = "info") => {
-
-  setLogs(prev => [{ 
-    id: Date.now() + Math.random(), 
-    ts: nowTime(), 
-    type, 
-    message: text 
-  }, ...prev]);
-};
+    setLogs(prev => [{ id: Date.now(), ts: nowTime(), type, message: text }, ...prev]);
+  };
 
   async function onUpload() {
     const raw = context.trim();

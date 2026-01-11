@@ -8,17 +8,17 @@ export async function POST(req: Request) {
     const client = new ElevenLabsClient({
       apiKey: process.env.ELEVENLABS_API_KEY,
     });
+    
+    const finalText = text; 
 
-    // Using the ID you found earlier: 56AoDkrOh6qfVPDXZ7Pt
     const audioStream = await client.textToSpeech.convert(
       "56AoDkrOh6qfVPDXZ7Pt", 
       {
-        text: text,
-        model_id: "eleven_multilingual_v2",
+        text: finalText,
+        model_id: "eleven_turbo_v2_5", 
         voice_settings: { 
-            // ⬇️ DISTURBANCE FIX: High stability removes starting noise/stutter
-            stability: 0.8, 
-            similarity_boost: 0.85 
+            stability: 0.3, 
+            similarity_boost: 0.8 
         },
       }
     );

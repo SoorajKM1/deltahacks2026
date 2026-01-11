@@ -1,13 +1,12 @@
 "use client";
+
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-// We don't need fetchAnswer anymore because we are calling our own API
-// import { fetchAnswer } from "../../lib/answer"; 
 import { getCommonConfig } from "../../lib/chat-config";
-import { Volume2 } from "lucide-react"; // Import speaker icon
+import { Volume2, Loader2 } from "lucide-react"; 
 
 interface Message {
   role: "user" | "assistant";
@@ -18,25 +17,53 @@ export function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [voiceLoading, setVoiceLoading] = useState(false); // New state for replay spinner
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
+  // --- ELEVENLABS: HIDDEN AUDIO PLAYER ---
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
   const commonConfig = getCommonConfig();
 
-  // --- TEXT TO SPEECH FUNCTION ---
-  const speak = (text: string) => {
-    window.speechSynthesis.cancel(); // Stop previous speech
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9; // Slightly slower for seniors
-    window.speechSynthesis.speak(utterance);
+  // --- ELEVENLABS: VOICE FUNCTION ---
+  const playVoice = async (text: string) => {
+    try {
+      setVoiceLoading(true); // Show loading spinner on button
+
+      // 1. Fetch Audio from Backend
+      const response = await fetch("/api/speak", {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) throw new Error("Voice generation failed");
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // 2. Play using the Hidden Audio Element
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.playbackRate = 0.9; // Slow & Clear
+        
+        await audioRef.current.play().catch((err) => {
+           console.error("❌ Browser blocked audio:", err);
+        });
+      }
+    } catch (err) {
+      console.error("Audio error:", err);
+    } finally {
+      setVoiceLoading(false);
+    }
   };
 
   // --- AUTO-SPEAK EFFECT ---
-  // When a new message arrives from AI, read it automatically
+  // When a new AI message arrives, read it automatically
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && lastMsg.role === "assistant") {
-      speak(lastMsg.content);
+      playVoice(lastMsg.content);
     }
   }, [messages]);
 
@@ -51,7 +78,7 @@ export function Chat() {
     setError(null);
 
     try {
-      // 2. Call YOUR Gemini Route (Bypassing the boilerplate default)
+      // 2. Call YOUR Gemini Route
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -62,19 +89,16 @@ export function Chat() {
 
       const answer = await response.text();
 
-      // 3. Add AI Response
+      // 3. Add AI Response (Triggers useEffect to speak)
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: answer },
       ]);
       
-      // (The useEffect above will handle the speaking automatically)
-
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
       setLoading(false);
-      // Keep focus on input for easy typing
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -89,6 +113,9 @@ export function Chat() {
     <Card className="max-w-lg w-full mx-auto mt-8 bg-card text-card-foreground border-radius-lg shadow-lg">
       <CardContent className="flex flex-col gap-4 p-4">
         
+        {/* --- HIDDEN AUDIO PLAYER --- */}
+        <audio ref={audioRef} className="hidden" />
+
         {/* CHAT AREA */}
         <div className="flex flex-col gap-4 max-h-96 overflow-y-auto bg-background p-2">
           {messages.length === 0 && (
@@ -113,11 +140,16 @@ export function Chat() {
               {/* Replay Button (Only for AI messages) */}
               {msg.role === "assistant" && (
                 <button 
-                  onClick={() => speak(msg.content)}
-                  className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                  onClick={() => playVoice(msg.content)} 
+                  disabled={voiceLoading}
+                  className="p-2 hover:bg-gray-200 rounded-full transition-colors disabled:opacity-50"
                   aria-label="Read out loud"
                 >
-                  <Volume2 className="h-4 w-4 text-gray-500" />
+                  {voiceLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                  ) : (
+                    <Volume2 className="h-4 w-4 text-gray-500" />
+                  )}
                 </button>
               )}
 
@@ -144,7 +176,7 @@ export function Chat() {
             onKeyDown={handleKeyDown}
             placeholder="Ask Anchor..."
             disabled={loading}
-            className="flex-1 text-lg h-12" // Bigger text for seniors
+            className="flex-1 text-lg h-12"
             autoFocus
           />
           <Button onClick={handleSend} disabled={loading || !input.trim()} className="h-12 px-6">

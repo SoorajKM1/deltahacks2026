@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sparkles, Clock, Users, Pill, X, Camera } from "lucide-react";
 import NeuroVaultShell from "../components/neurovault/NeuroVaultShell";
 import BigActionButton from "../components/neurovault/BigAction";
@@ -13,13 +13,47 @@ export default function Page() {
   const [transcript, setTranscript] = useState("");
   const [answer, setAnswer] = useState("");
   const [showCamera, setShowCamera] = useState(false);
-
-  // Optional: still store this if you want to show the "Photo Analyzed" feedback card briefly
   const [lastVision, setLastVision] = useState<VisionIdentifyResult | null>(null);
+
+  // --- ELEVENLABS: HIDDEN AUDIO PLAYER REF ---
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (answer) window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
   }, [answer]);
+
+  // --- ELEVENLABS: VOICE FUNCTION ---
+  async function playVoice(text: string) {
+    try {
+      // 1. Fetch Audio from Backend
+      const response = await fetch("/api/speak", {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) throw new Error("Voice generation failed");
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // 2. Play using the Hidden Audio Element (Most reliable method)
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        
+        // Optimized speed for clarity (0.9 is perfect for seniors)
+        audioRef.current.playbackRate = 0.9; 
+        
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((error) => {
+            console.error("❌ Browser blocked audio:", error);
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Audio error:", err);
+    }
+  }
 
   async function onAsk(query: string, displayText?: string) {
     const q = query.trim();
@@ -42,24 +76,18 @@ export default function Page() {
 
       const a = await response.text();
       setAnswer(a);
-      speak(a);
+      
+      // --- USE ELEVENLABS INSTEAD OF ROBOT VOICE ---
+      playVoice(a);
+
     } catch (e) {
       console.error(e);
       const fallback = "I'm having trouble connecting to my memory right now.";
       setAnswer(fallback);
-      speak(fallback);
+      playVoice(fallback);
     } finally {
       setStatus("idle");
     }
-  }
-
-  function speak(text: string) {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.95;
-    u.pitch = 1.05;
-    window.speechSynthesis.speak(u);
   }
 
   // ✅ NEW: auto-send "Who is this person?" immediately after capture
@@ -79,6 +107,10 @@ export default function Page() {
 
   return (
     <NeuroVaultShell status={status}>
+      
+      {/* --- ELEVENLABS: HIDDEN PLAYER --- */}
+      <audio ref={audioRef} className="hidden" />
+
       <div
         className={`
           flex items-center justify-center gap-8 w-fit mx-auto transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] h-[85vh]

@@ -99,9 +99,9 @@ export default function Page() {
 
     // Send #file to backend if known, but show friendly transcript
     if (r.memory_id && r.memory_id !== "unknown") {
-      onAsk(`#file:${r.memory_id}`, "Who is this person?");
+      onAsk(`#file:${r.memory_id}`, "Who/What is this person?");
     } else {
-      onAsk("Who is this person?");
+      onAsk("Who/What is this person?");
     }
   }
 

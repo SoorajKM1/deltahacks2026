@@ -3,7 +3,7 @@ import io
 import json
 import base64
 from typing import Dict, Any, Tuple, List
-
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
@@ -26,7 +26,16 @@ DISTANCE_METRIC = "cosine"
 # In-memory DB
 DB: List[Dict[str, Any]] = []
 
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 class IdentifyRequest(BaseModel):
     image_base64: str  # data URL or raw base64
 

@@ -1,8 +1,9 @@
 {
-  "grandson_tim.png": "mem_family_tim.txt",
-  "pill_bottle.png": "mem_routine_medication.txt",
-  "key_bowl.png": "mem_routine_keys.txt",
-  "glasses_table.png": "mem_objects_glasses.txt",
-  "family_photo.png": "mem_family_photo.txt",
-  "grandson_saahil.png": "mem_family_saahil.txt"
+  "grandson_tim.png": { "label": "tim", "memory_id": "mem_family_tim.txt" },
+  "pill_bottle.png": { "label": "pill_bottle", "memory_id": "mem_routine_medication.txt" },
+  "key_bowl.png": { "label": "key_bowl", "memory_id": "mem_routine_keys.txt" },
+  "glasses_table.png": { "label": "glasses", "memory_id": "mem_objects_glasses.txt" },
+  "family_photo.png": { "label": "family_photo", "memory_id": "mem_family_photo.txt" },
+  "grandson_saahil.png": { "label": "saahil", "memory_id": "mem_family_saahil.txt" },
+  "grandson_sooraj.png": { "label": "sooraj", "memory_id": "mem_family_sooraj.txt" }
 }

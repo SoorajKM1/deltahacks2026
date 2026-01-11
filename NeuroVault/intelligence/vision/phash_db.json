@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "filename": "grandson_tim.png",
+      "memory_id": "mem_family_tim.txt",
+      "phash": "d6f6a10919bc7c46"
+    },
+    {
+      "filename": "pill_bottle.png",
+      "memory_id": "mem_routine_medication.txt",
+      "phash": "ab5d33f078a2a323"
+    },
+    {
+      "filename": "key_bowl.png",
+      "memory_id": "mem_routine_keys.txt",
+      "phash": "e56b2984374a8bb5"
+    },
+    {
+      "filename": "glasses_table.png",
+      "memory_id": "mem_objects_glasses.txt",
+      "phash": "95ac32534d5ba9b2"
+    },
+    {
+      "filename": "family_photo.png",
+      "memory_id": "mem_family_photo.txt",
+      "phash": "c243e8f306e9ee0b"
+    }
+  ]
+}

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-// import { askNeuroVault } from "../lib/neurovault-client"; #This is the old chat, were not using it anymore
 import NeuroVaultShell from "../components/neurovault/NeuroVaultShell";
 import BigActionButton from "../components/neurovault/BigAction";
 import ResponseCard from "../components/neurovault/ResponseCard";
 import CaregiverFab from "@/components/neurovault/CaregiverFab";
+import CameraCapture, { VisionIdentifyResult } from "@/components/neurovault/CameraCapture";
 
 export default function Page() {
   const [status, setStatus] = useState<"idle" | "listening" | "thinking">("idle");
@@ -16,23 +16,24 @@ export default function Page() {
     const q = text.trim();
     if (!q) return;
 
+    // Do not start a new request while already thinking
+    if (status === "thinking") return;
+
     setStatus("thinking");
     setTranscript(q);
 
     try {
-      // --- NEW: Direct Call to Gemini Brain --- IMPORTANT
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            messages: [{ role: "user", content: q }] 
+        body: JSON.stringify({
+          messages: [{ role: "user", content: q }],
         }),
       });
 
       if (!response.ok) throw new Error("Brain connection failed");
 
       const a = await response.text();
-      // ----------------------------------------
 
       setAnswer(a);
       speak(a);
@@ -52,13 +53,19 @@ export default function Page() {
 
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    // Accessibility Tweak: Slower rate for seniors
-    u.rate = 0.9; 
-    // Optional: Deep/Comforting voice if available
-    // const voices = window.speechSynthesis.getVoices();
-    // u.voice = voices.find(v => v.name.includes("Male")) || null; 
-    
+    u.rate = 0.9;
     window.speechSynthesis.speak(u);
+  }
+
+  function handleIdentify(r: VisionIdentifyResult) {
+    // New backend returns memory_id (example: "mem_family_tim.txt")
+    if (r.memory_id && r.memory_id !== "unknown") {
+      // Deterministic retrieval (after you ingest memories with metadata.file)
+      onAsk(`#file:${r.memory_id}`);
+      return;
+    }
+
+    onAsk("Who is this person?");
   }
 
   return (
@@ -69,12 +76,14 @@ export default function Page() {
           <p className="mt-3 text-xl text-black/60">I help only when you ask.</p>
         </header>
 
+        {/* Voice / Ask */}
         <BigActionButton
           status={status}
           onResult={(q) => onAsk(q)}
           onStatusChange={(s) => setStatus(s)}
         />
 
+        {/* What the user said */}
         <div className="rounded-2xl border border-black/10 bg-white p-7">
           <div className="text-sm uppercase tracking-wide text-black/60">You said</div>
           <div className="mt-3 min-h-14 text-3xl font-semibold">
@@ -82,8 +91,31 @@ export default function Page() {
           </div>
         </div>
 
+        {/* Photo Recall */}
+        <div className="rounded-2xl border border-black/10 bg-white p-7">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm uppercase tracking-wide text-black/60">Photo recall</div>
+              <div className="mt-1 text-xl font-semibold">Identify from camera</div>
+            </div>
+            <div className="text-sm text-black/60">
+              {status === "thinking" ? "Thinking…" : "Ready"}
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <CameraCapture onIdentify={handleIdentify} />
+          </div>
+
+          <p className="mt-4 text-sm text-black/60">
+            Tip: Use the same reference photos as <span className="font-mono">data/images</span>.
+          </p>
+        </div>
+
+        {/* Answer */}
         <ResponseCard answer={answer} />
       </div>
+
       <CaregiverFab />
     </NeuroVaultShell>
   );

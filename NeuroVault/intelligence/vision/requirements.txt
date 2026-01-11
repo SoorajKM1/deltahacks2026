@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+pillow
+imagehash
+python-multipart

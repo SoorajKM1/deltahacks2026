@@ -1,118 +1,155 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// --- CONFIGURATION ---
-// 1. Gemini Configuration (The Brain)
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-// 2. Moorcheh Configuration (The Memory)
-// This MUST match the namespace name in your Python script
 const NAMESPACE = "grandpa_joe_FINAL";
+const MOORCHEH_SEARCH_URL = "https://api.moorcheh.ai/v2/search";
+
+function extractFileId(q: string) {
+  const m = q.trim().match(/^#file:(.+)$/i);
+  return m ? m[1].trim() : null;
+}
+
+function safeJsonParse(raw: string) {
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildContextFromResults(results: any[]) {
+  return results
+    .map((r) => r?.text)
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+}
+
+// Super simple non-LLM fallback so demo never dies
+function fallbackAnswerFromContext(contextText: string) {
+  if (!contextText) return "I’m not sure. Let’s call Sarah.";
+
+  // Keep it short, like your prompt wanted
+  const words = contextText.replace(/\s+/g, " ").split(" ").slice(0, 18);
+  return `${words.join(" ")}…`;
+}
+
+async function moorchehFetch(body: any) {
+  const apiKey =
+    process.env.MOORCHEH_API_KEY ||
+    process.env.NEXT_PUBLIC_MOORCHEH_API_KEY ||
+    "";
+
+  if (!apiKey) {
+    return {
+      ok: false,
+      status: 500,
+      raw: `{"message":"Missing MOORCHEH_API_KEY env var"}`,
+    };
+  }
+
+  const res = await fetch(MOORCHEH_SEARCH_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const raw = await res.text();
+  return { ok: res.ok, status: res.status, raw };
+}
+
+async function moorchehSearchByFileId(fileId: string) {
+  // Use a single-space query so some backends skip embedding
+  // If Moorcheh still tries to embed and Bedrock is down, we will fallback gracefully.
+  return moorchehFetch({
+    namespace: NAMESPACE,
+    query: " ",
+    limit: 3,
+    metadata_filter: { file: fileId },
+  });
+}
+
+async function moorchehSemanticSearch(query: string) {
+  return moorchehFetch({
+    namespace: NAMESPACE,
+    query,
+    limit: 3,
+  });
+}
 
 export async function POST(req: Request) {
   try {
-    const { messages } = await req.json();
-    
-    // Get the user's last question
-    const lastUserMessage = messages[messages.length - 1].content;
+    const payload = await req.json();
+    const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+    const lastUserMessage = messages[messages.length - 1]?.content || "";
+
     console.log(`🧠 Searching Moorcheh for: "${lastUserMessage}"`);
 
-    // --- STEP A: RETRIEVE MEMORY (Moorcheh) ---
-    // We search your specific namespace for context
-    const MOORCHEH_API_KEY = process.env.NEXT_PUBLIC_MOORCHEH_API_KEY || "";
-    if (!MOORCHEH_API_KEY) {
-      console.log("❌ Missing MOORCHEH_API_KEY in patient-ui/.env.local");
-      return new NextResponse("Server missing Moorcheh key", { status: 500 });
+    const fileId = extractFileId(lastUserMessage);
+
+    // 1) Retrieve memory
+    const search = fileId
+      ? await moorchehSearchByFileId(fileId)
+      : await moorchehSemanticSearch(lastUserMessage);
+
+    console.log("Moorcheh status:", search.status);
+    console.log("Moorcheh raw:", (search.raw || "").slice(0, 800));
+
+    // If Moorcheh fails, do not 500 your UI
+    if (!search.ok) {
+      return new NextResponse(
+        "I’m having trouble accessing memory right now. Please try again or ask the caregiver to re-sync.",
+        { status: 200 }
+      );
     }
 
-    console.log("MOORCHEH key prefix:", MOORCHEH_API_KEY.slice(0, 6));
-
-    const searchResponse = await fetch("https://api.moorcheh.ai/v1/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": MOORCHEH_API_KEY,
-      },
-      body: JSON.stringify({
-        query: lastUserMessage,
-        namespaces: [NAMESPACE],
-        top_k: 3,
-      }),
-    });
-
-    const raw = await searchResponse.text();
-    console.log("Moorcheh status:", searchResponse.status);
-    console.log("Moorcheh raw:", raw.slice(0, 800));
-
-    if (!searchResponse.ok) {
-      return new NextResponse("Moorcheh search failed", { status: 500 });
-    }
-
-    const searchData = JSON.parse(raw);
-    const results = Array.isArray(searchData?.results) ? searchData.results : [];
+    const data = safeJsonParse(search.raw);
+    const results = Array.isArray(data?.results) ? data.results : [];
+    const contextText = buildContextFromResults(results);
 
     console.log("Moorcheh results count:", results.length);
-    console.log("Top hit:", results[0]?.id, results[0]?.score);
-
-    const contextText = results
-      .map((r: any) => r.text)
-      .filter(Boolean)
-      .join("\n\n");
-
     console.log("Context length:", contextText.length);
     console.log("Context preview:", contextText.slice(0, 200));
 
-    // const searchResponse = await fetch("https://api.moorcheh.ai/v1/search", {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //     "x-api-key": process.env.NEXT_PUBLIC_MOORCHEH_API_KEY || ""
-    //   },
-    //   body: JSON.stringify({
-    //     namespace: NAMESPACE,
-    //     query: lastUserMessage,
-    //     limit: 3 // Get top 3 most relevant memories
-    //   })
-    // });
+    // 2) Generate answer (Gemini if available, else fallback)
+    const googleKey = process.env.GOOGLE_API_KEY || "";
+    if (!googleKey) {
+      return new NextResponse(fallbackAnswerFromContext(contextText), { status: 200 });
+    }
 
-    // const searchData = await searchResponse.json();
-    
-    // // Combine the found text segments into one block
-    // let contextText = "";
-    // if (searchData.documents) {
-    //   contextText = searchData.documents.map((doc: any) => doc.text).join("\n\n");
-    //   console.log("✅ Context Found");
-    // } else {
-    //   console.log("⚠️ No context found.");
-    // }
+    try {
+      const genAI = new GoogleGenerativeAI(googleKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    // --- STEP B: GENERATE ANSWER (Gemini) ---
-    const systemPrompt = `
-      ROLE: You are "NeuroVault," a compassionate dementia care assistant.
-      
-      RETRIEVED MEMORY:
-      ${contextText}
-      
-      USER QUESTION:
-      ${lastUserMessage}
-      
-      INSTRUCTIONS:
-      1. Answer using ONLY the provided MEMORY.
-      2. If the answer isn't in the memory, say "I'm not sure, let's call Sarah."
-      3. Keep the answer under 20 words.
-      4. Speak slowly and clearly.
-    `;
-    console.log("Context length:", contextText.length);
-    console.log("Context preview:", contextText.slice(0, 200));
-    const result = await model.generateContent(systemPrompt);
-    const responseText = result.response.text();
+      const systemPrompt = `
+ROLE: You are "NeuroVault," a compassionate dementia care assistant.
 
-    return new NextResponse(responseText);
+RETRIEVED MEMORY:
+${contextText}
 
+USER QUESTION:
+${lastUserMessage}
+
+INSTRUCTIONS:
+1. Answer using ONLY the provided MEMORY.
+2. If the answer isn't in the memory, say "I'm not sure, let's call Sarah."
+3. Keep the answer under 20 words.
+4. Speak slowly and clearly.
+`.trim();
+
+      const result = await model.generateContent(systemPrompt);
+      const responseText = result.response.text();
+
+      return new NextResponse(responseText, { status: 200 });
+    } catch (e) {
+      console.log("Gemini failed, using fallback:", e);
+      return new NextResponse(fallbackAnswerFromContext(contextText), { status: 200 });
+    }
   } catch (error) {
     console.error("❌ Error in Chat Route:", error);
-    return new NextResponse("I am having trouble thinking right now.", { status: 500 });
+    return new NextResponse("I’m having trouble thinking right now.", { status: 200 });
   }
 }

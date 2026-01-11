@@ -3,30 +3,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export type VisionIdentifyResult = {
-    memory_id: string; // "mem_family_tim.txt" or "unknown"
-    confidence: number;
-    distance?: number;
-    match_filename?: string;
+  memory_id: string; // "mem_family_tim.txt" or "unknown"
+  confidence: number;
+  distance?: number;
+  match_filename?: string;
 };
 
 type Status = "idle" | "starting" | "ready" | "capturing" | "error";
 
 export default function CameraCapture({
-    backendUrl = "http://localhost:8001",
+    backendUrl = "http://localhost:8001", // not used anymore but keeping prop so nothing breaks
     onCapture,
     onIdentify,
-    autoAskFromMemoryId,
     }: {
     backendUrl?: string;
-
-    // Called with the captured image (data URL)
     onCapture?: (imageDataUrl: string) => void;
-
-    // Called with the backend identify response
     onIdentify?: (result: VisionIdentifyResult) => void;
-
-    // Convenience: if provided, we will call this with "#file:<memory_id>" when match is found
-    autoAskFromMemoryId?: (query: string) => void;
     }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -119,25 +111,35 @@ export default function CameraCapture({
         setLastSnapshot(img);
         onCapture?.(img);
 
-        const res = await fetch(`${backendUrl}/identify`, {
+        // Call Next proxy to avoid CORS
+        const res = await fetch("/api/vision/identify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ image_base64: img }),
         });
 
-        const data = (await res.json()) as VisionIdentifyResult;
+        const raw = await res.text();
+        let parsed: any = null;
+
+        try {
+            parsed = raw ? JSON.parse(raw) : null;
+        } catch {
+            parsed = { nonJson: true, raw };
+        }
 
         if (!res.ok) {
-            console.error("Vision backend error:", data);
+            console.error("Vision backend status:", res.status);
+            console.error("Vision backend body:", parsed);
             throw new Error("Vision identify failed");
         }
 
-        setLastResult(data);
-        onIdentify?.(data);
+        const result = parsed as VisionIdentifyResult;
 
-        if (data.memory_id && data.memory_id !== "unknown") {
-            autoAskFromMemoryId?.(`#file:${data.memory_id}`);
-        }
+        setLastResult(result);
+        onIdentify?.(result);
+
+        // IMPORTANT: do NOT auto-send #file:... here anymore.
+        // The parent page decides what to do with the result.
         } catch (e: any) {
         console.error(e);
         setErr(e?.message || "Something went wrong");
@@ -172,7 +174,7 @@ export default function CameraCapture({
             </button>
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-2xl border border-black/10 bg-black/[0.02]">
+            <div className="mt-4 overflow-hidden rounded-2xl border border-black/10 bg-black/20">
             <video ref={videoRef} className="w-full" playsInline muted />
             </div>
 
@@ -193,21 +195,21 @@ export default function CameraCapture({
                 <div className="text-2xl font-semibold">Last capture</div>
                 <button
                 onClick={resetPreview}
-                className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-lg text-black/70 hover:bg-black/[0.03]"
+                className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-lg text-black/70 hover:bg-black/30"
                 >
                 Clear
                 </button>
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="overflow-hidden rounded-2xl border border-black/10 bg-black/[0.02]">
+                <div className="overflow-hidden rounded-2xl border border-black/10 bg-black/20">
                 {lastSnapshot ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={lastSnapshot} alt="Captured frame" className="w-full" />
                 ) : null}
                 </div>
 
-                <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-5">
+                <div className="rounded-2xl border border-black/10 bg-black/20 p-5">
                 <div className="text-sm uppercase tracking-wide text-black/60">Match</div>
 
                 {lastResult ? (
@@ -234,8 +236,7 @@ export default function CameraCapture({
 
                     {lastResult.memory_id !== "unknown" ? (
                         <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-                        We can now query Moorcheh with{" "}
-                        <span className="font-mono">#file:{lastResult.memory_id}</span>.
+                        Detected memory: <span className="font-mono">#file:{lastResult.memory_id}</span>. Use the button on the main page to ask about it.
                         </div>
                     ) : (
                         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
@@ -251,7 +252,6 @@ export default function CameraCapture({
             </div>
         )}
 
-        {/* hidden canvas used for capture */}
         <canvas ref={canvasRef} className="hidden" />
         </div>
     );

@@ -3,3 +3,7 @@ uvicorn
 pillow
 imagehash
 python-multipart
+opencv-python-headless
+deepface
+tf-keras
+moorcheh-sdk
